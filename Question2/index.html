@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Card Game: Human vs CPU</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f0f8ff;
+      color: #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .game-container {
+      max-width: 700px;
+      background-color: #ffffff;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #2a9df4;
+    }
+
+    .hand {
+      margin: 20px 0;
+      padding: 15px;
+      background-color: #f9f9f9;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .hand h3 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+
+    li {
+      background-color: #e3f2fd;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 5px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .discard-pile {
+      margin: 20px 0;
+      padding: 15px;
+      background-color: #ffe6e6;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .button-container {
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    button {
+      background-color: #2a9df4;
+      color: #ffffff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 25px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #1a73e8;
+    }
+
+    .game-log {
+      margin-top: 20px;
+      background-color: #f1f8e9;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .game-log p {
+      margin: 0;
+      padding: 5px 0;
+      color: #555;
+    }
+
+    .header-container {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="game-container">
+  <h1>Card Game: Human vs CPU</h1>
+
+  <div class="hand" id="human-hand">
+    <h3>Human's Hand</h3>
+    <ul id="human-cards">
+    </ul>
+  </div>
+
+  <div class="hand" id="cpu-hand">
+    <h3>CPU's Hand</h3>
+    <p id="cpu-card-count">Cards Left: 0</p>
+  </div>
+
+  <div class="discard-pile" id="discard-pile">
+    <h3>Discarded Cards</h3>
+    <ul id="discarded-cards">
+    </ul>
+  </div>
+
+  <div class="button-container">
+    <button id="turn-button" onclick="playTurn()">Start Game</button>
+  </div>
+
+  <div class="game-log" id="game-log">
+  </div>
+</div>
+
+<script>
+  const suits = ['Hearts', 'Diamonds', 'Clubs', 'Spades'];
+  const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'Jack', 'Queen', 'King', 'Ace'];
+  let deck = [];
+  let humanHand = [];
+  let cpuHand = [];
+  let discardedCards = [];
+  let currentTurn = "";
+
+  function createDeck() {
+    deck = [];
+    for (let suit of suits) {
+      for (let rank of ranks) {
+        deck.push(`${rank} of ${suit}`);
+      }
+    }
+  }
+
+  function shuffleDeck() {
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+  }
+
+  function dealCards() {
+    humanHand = [];
+    cpuHand = [];
+    for (let i = 0; i < 5; i++) {
+      humanHand.push(deck.pop());
+      cpuHand.push(deck.pop());
+    }
+    renderHands();
+  }
+
+  function renderHands() {
+    document.getElementById("human-cards").innerHTML = humanHand.map(card => `<li>${card}</li>`).join('');
+    document.getElementById("cpu-card-count").innerText = `Cards Left: ${cpuHand.length}`;
+    document.getElementById("discarded-cards").innerHTML = discardedCards.map(card => `<li>${card}</li>`).join('');
+  }
+
+  function logAction(message) {
+    const logDiv = document.getElementById('game-log');
+    logDiv.innerHTML += `<p>${message}</p>`;
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+
+  function discardSets(player, hand) {
+    const rankCounts = {};
+    hand.forEach(card => {
+      const rank = card.split(' ')[0];
+      rankCounts[rank] = (rankCounts[rank] || 0) + 1;
+    });
+
+    for (let rank in rankCounts) {
+      if (rankCounts[rank] === 4) {
+        const discarded = hand.filter(card => card.includes(rank));
+        hand = hand.filter(card => !card.includes(rank));
+        discardedCards.push(...discarded);
+        logAction(`${player} collected all 4 ${rank}s and discarded them!`);
+      }
+    }
+    return hand;
+  }
+
+  function askForCards(rank, opponentHand, playerHand, isCpuTurn) {
+    const cardsToGive = opponentHand.filter(card => card.includes(rank) && !isCardDiscarded(card));
+
+    if (cardsToGive.length > 0) {
+      if (isCpuTurn) {
+        cardsToGive.forEach(card => {
+          cpuHand.push(card);
+          humanHand.splice(humanHand.indexOf(card), 1);
+        });
+        logAction(`CPU takes ${cardsToGive.length} ${rank}s from Human.`);
+      } else {
+        cardsToGive.forEach(card => {
+          humanHand.push(card);
+          cpuHand.splice(cpuHand.indexOf(card), 1);
+        });
+        logAction(`Human takes ${cardsToGive.length} ${rank}s from CPU.`);
+      }
+    } else {
+      if (isCpuTurn) {
+        logAction(`Human does not have any ${rank}s. Human draws a card.`);
+        humanHand.push(deck.pop());
+      } else {
+        logAction(`CPU does not have any ${rank}s. CPU draws a card.`);
+        cpuHand.push(deck.pop());
+      }
+    }
+
+    renderHands();
+    humanHand = discardSets("Human", humanHand);
+    cpuHand = discardSets("CPU", cpuHand);
+    renderHands();
+  }
+
+  function isCardDiscarded(card) {
+    return discardedCards.includes(card);
+  }
+
+  function isRankDiscarded(rank) {
+    return discardedCards.some(card => card.includes(rank));
+  }
+
+  function humanTurn() {
+    const validRanks = ranks.join(", ");
+    let rankToAsk = prompt(
+            `Ask the CPU: Which rank do you want? (Choose from: ${validRanks})`
+    );
+
+    while (!ranks.includes(rankToAsk) || isRankDiscarded(rankToAsk)) {
+      rankToAsk = prompt(
+              `Invalid or discarded rank! Please choose a valid rank (e.g., '7', 'Ace') that is not in the discarded pile.\nValid ranks: ${validRanks}`
+      );
+    }
+
+    logAction(`Human asks: Do you have any ${rankToAsk}s?`);
+    askForCards(rankToAsk, cpuHand, humanHand, false);
+  }
+
+  function cpuTurn() {
+    const availableRanks = ranks.filter(rank => !isRankDiscarded(rank));
+
+    const rankToAsk = availableRanks[Math.floor(Math.random() * availableRanks.length)];
+
+    if (rankToAsk) {
+      logAction(`CPU asks: Do you have any ${rankToAsk}s?`);
+      askForCards(rankToAsk, humanHand, cpuHand, true);
+    } else {
+      logAction("CPU has no valid ranks to ask and skips the turn.");
+    }
+  }
+
+  function playTurn() {
+    if (currentTurn === "human") {
+      humanTurn();
+      currentTurn = "cpu";
+      document.getElementById("turn-button").innerText = "CPU's Turn";
+    } else if (currentTurn === "cpu") {
+      cpuTurn();
+      currentTurn = "human";
+      document.getElementById("turn-button").innerText = "Human's Turn";
+    }
+    checkWinner();
+  }
+
+  function checkWinner() {
+    if (humanHand.length === 0) {
+      alert("Human wins!");
+      resetGame();
+    } else if (cpuHand.length === 0) {
+      alert("CPU wins!");
+      resetGame();
+    }
+  }
+
+  function randomizeFirstTurn() {
+    currentTurn = Math.random() < 0.5 ? "human" : "cpu";
+    document.getElementById("turn-button").innerText = currentTurn === "human" ? "Human's Turn" : "CPU's Turn";
+    logAction(`${currentTurn === "human" ? "Human" : "CPU"} goes first.`);
+  }
+
+  function resetGame() {
+    createDeck();
+    shuffleDeck();
+    dealCards();
+    discardedCards = [];
+    randomizeFirstTurn();
+    document.getElementById("game-log").innerHTML = "";
+    logAction("Game reset. New game started.");
+  }
+
+  createDeck();
+  shuffleDeck();
+  dealCards();
+  randomizeFirstTurn();
+</script>
+
+</body>
+</html>
